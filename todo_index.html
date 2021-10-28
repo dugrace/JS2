@@ -16,4 +16,168 @@
 </script>
 
 </body>
-</html>
+</html>import React, {useEffect} from 'react';
+import PropTypes from 'prop-types';
+import createIssueStyles from '../../assets/jss/create-issue-styles';
+import Box from '@material-ui/core/Box';
+import CheckIcon from '@material-ui/icons/Check';
+import {withStyles} from '@material-ui/core/styles';
+import {useSelector, useDispatch} from 'react-redux';
+import Tooltip from '@material-ui/core/Tooltip';
+import _ from 'lodash';
+import clsx from 'clsx';
+import {reset} from 'redux-form';
+
+const FormBreadcrumb = props => {
+    const createIssueClasses = createIssueStyles();
+    const dispatch = useDispatch();
+    useEffect(() => {
+        // Clear all form data when this component unmounts
+        return () => {
+            props.formPageObjects.forEach(formPageObject => {
+                dispatch(reset(formPageObject.formName));
+            });
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const StyledCheckIcon = withStyles({
+        root: {
+            color: '#fff',
+            right: '1px',
+            zIndex: 1,
+            position: 'absolute',
+            fontSize: '14px',
+            bottom: '3px'
+        }
+    })(CheckIcon);
+
+    // Get the validation status of all forms
+    let formsReduxStorage = useSelector(state => state.form);
+
+    const HtmlTooltip = withStyles(theme => ({
+        tooltip: {
+            backgroundColor: '#fff',
+            color: 'rgba(0, 0, 0, 0.87)',
+            maxWidth: 300,
+            fontSize: 13,
+            border: '1px solid #dadde9',
+            '& ul': {
+                marginLeft: -11
+            }
+        }
+    }))(Tooltip);
+
+    return (
+        <div className={createIssueClasses.createIssueBreadcrumbContainer}>
+            <div className={createIssueClasses.createIssueBreadcrumbHelmet}>
+                <Box fontSize={20} fontWeight={500}>
+                    New Issue
+                </Box>
+            </div>
+
+            <div className={createIssueClasses.createIssueBreadcrumbContent}>
+                {props.formPageObjects.map(({pageLabel, formName}, index) => {
+                    let dotStyle = createIssueClasses.progressDot;
+                    let lineStyle = createIssueClasses.progressPath;
+                    let labelStyle = createIssueClasses.progressLabelButton;
+                    let isDisabled = false;
+                    let invalidFields = formsReduxStorage[formName] && formsReduxStorage[formName].syncErrors;
+                    let formVisited = formsReduxStorage[formName] && !_.isEmpty(formsReduxStorage[formName]);
+
+                    if (props.formPage > index && invalidFields) {
+                        dotStyle = clsx(createIssueClasses.incompleteProgressDot, createIssueClasses.progressDot);
+                    } else if (props.formPage > index && !invalidFields && formVisited) {
+                        dotStyle = clsx(createIssueClasses.completeProgressDot, createIssueClasses.progressDot);
+                    } else if (props.formPage === index) {
+                        dotStyle = clsx(createIssueClasses.filledProgressDot, createIssueClasses.progressDot);
+                        labelStyle = clsx(createIssueClasses.progressLabelButton, createIssueClasses.boldProgressLabel);
+                        isDisabled = true;
+                    } else if (props.formPage < index && invalidFields) {
+                        dotStyle = clsx(createIssueClasses.incompleteProgressDot, createIssueClasses.progressDot);
+                    } else if (props.formPage < index && formVisited && !invalidFields) {
+                        dotStyle = clsx(createIssueClasses.completeProgressDot, createIssueClasses.progressDot);
+                    }
+
+                    let navigationButton = <div />;
+
+                    /* For pages that are marked as 'warn', render a tooltip explaining why */
+                    if (props.formPage !== index && formVisited && invalidFields) {
+                        let tooltipHeader =
+                            _.keys(invalidFields).length === 1
+                                ? 'This field needs attention:'
+                                : 'These fields need attention:';
+
+                        navigationButton = (
+                            <HtmlTooltip
+                                arrow
+                                title={
+                                    <React.Fragment>
+                                        <h3>{tooltipHeader}</h3>
+                                        <ul>
+                                            {_.keys(formsReduxStorage[formName].syncErrors).map(
+                                                (invalidFieldName, fieldIndex) => {
+                                                    return (
+                                                        <li key={fieldIndex}>
+                                                            {
+                                                                formsReduxStorage[formName].syncErrors[invalidFieldName]
+                                                                    .fieldLabel
+                                                            }
+                                                        </li>
+                                                    );
+                                                }
+                                            )}
+                                        </ul>
+                                    </React.Fragment>
+                                }
+                            >
+                                <button
+                                    type="button"
+                                    className={labelStyle}
+                                    disabled={isDisabled}
+                                    onClick={() => props.setFormPage(index)}
+                                >
+                                    {pageLabel}
+                                </button>
+                            </HtmlTooltip>
+                        );
+                    } else {
+                        navigationButton = (
+                            <button
+                                type="button"
+                                className={labelStyle}
+                                disabled={isDisabled}
+                                onClick={() => props.setFormPage(index)}
+                            >
+                                {pageLabel}
+                            </button>
+                        );
+                    }
+
+                    return (
+                        <div key={index}>
+                            <Box display="flex">
+                                <Box position="relative">
+                                    <>
+                                        {props.formPage !== index && formVisited && !invalidFields && (
+                                            <StyledCheckIcon />
+                                        )}
+                                        <span className={dotStyle} />
+                                    </>
+                                </Box>
+                                {navigationButton}
+                            </Box>
+                            {index < props.formPageObjects.length - 1 && <div className={lineStyle} />}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+FormBreadcrumb.propTypes = {
+    formPage: PropTypes.number,
+    formPageObjects: PropTypes.array,
+    setFormPage: PropTypes.func
+};
+
+export default FormBreadcrumb;
