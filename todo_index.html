@@ -17,3 +17,342 @@
 
 </body>
 </html>
+
+
+import React from 'react';
+import {buildSaveRequestBody, saveIssueFormErrors, userFriendlyFormName} from '../../util/saveIssueUtil';
+import {saveAndContinueIssue} from '../../store/issuesReducer';
+import {useSelector, useDispatch} from 'react-redux';
+import {Button} from '@material-ui/core';
+import {withStyles} from '@material-ui/core/styles';
+import Tooltip from '@material-ui/core/Tooltip';
+import Modal from '@material-ui/core/Modal';
+import createIssueStyles from '../../assets/jss/create-issue-styles';
+import Box from '@material-ui/core/Box';
+import {useHistory} from 'react-router-dom';
+import CircularProgress from '@material-ui/core/CircularProgress';
+import basePageStyles from '../../assets/jss/base-page-styles';
+import SC from '../../util/sitecatConstants';
+import {logUsaaPageView} from '../../util/analytics';
+import Checkbox from '@material-ui/core/Checkbox';
+import FormGroup from '@material-ui/core/FormGroup';
+import FormControlLabel from '@material-ui/core/FormControlLabel';
+import {pIIErrorText} from '../../util/constants';
+
+const StyledFormControlButton = withStyles({
+    root: {
+        background: '#007FAC',
+        width: 128,
+        height: 42,
+        '&$disabled': {
+            color: '#808080',
+            background: '#EAEAEA'
+        }
+    },
+    disabled: {} // MUI official way to override 'disabled' styles ^^^
+})(Button);
+
+const HtmlTooltip = withStyles(theme => ({
+    tooltip: {
+        backgroundColor: '#fff',
+        color: 'rgba(0, 0, 0, 0.87)',
+        maxWidth: 300,
+        fontSize: 13,
+        border: '1px solid #dadde9',
+        '& ul': {
+            marginLeft: -11
+        }
+    }
+}))(Tooltip);
+
+const StyledCheckbox = withStyles({
+    root: {
+        padding: '0',
+        marginRight: 23,
+        color: '#c4c4c4',
+        '&Mui-checked': {
+            color: '#c4c4c4'
+        }
+    },
+    checked: {
+        color: '#007FAC',
+        '&Mui-checked': {
+            color: '#007FAC'
+        }
+    }
+})(checkboxProps => <Checkbox color="default" {...checkboxProps} />);
+
+const SaveIssueButton = props => {
+    const dispatch = useDispatch();
+    const {pIIErrorStatus} = props;
+    const formData = useSelector(state => state.form);
+    const [savingIssueModalIsOpen, setSavingIssueModalIsOpen] = React.useState(false);
+    const [saveIssueError, setSaveIssueError] = React.useState(false);
+    const [showLoaderWithPIIError, setShowLoaderWithPIIError] = React.useState(false);
+    const [checkPIIAccept, setCheckPIIAccept] = React.useState(false);
+
+    const createIssueClasses = createIssueStyles();
+    const history = useHistory();
+    const basePageClasses = basePageStyles();
+    let buttonContent = <div />;
+    let formErrors = saveIssueFormErrors(formData);
+    let errorCount = Object.keys(formErrors).length;
+
+    const handleSaveSuccess = response => {
+        history.push({
+            pathname: `/issues/${response.issueId}`,
+            state: {
+                saveIssueSuccess: true
+            }
+        });
+    };
+
+    const handleCloseFailureMessage = () => {
+        setSavingIssueModalIsOpen(false);
+        setSaveIssueError(null);
+    };
+
+    const handleSaveFailure = response => {
+        logUsaaPageView(SC.ERROR_CREATE_ISSUE_SAVE);
+        if (response && response.data && response.data && response.data.errors && response.data.errors.length > 0) {
+            setSaveIssueError(
+                <Box width="420px">
+                    The following error(s) were encountered when attempting to create the Issue:
+                    <div>
+                        <ul>
+                            {response.data.errors.map((errorObject, index) => (
+                                <li style={{marginTop: '10px'}} key={index}>
+                                    {errorObject.message}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <Button
+                        className={createIssueClasses.cancelIssueButton}
+                        onClick={handleCloseFailureMessage}
+                        variant="outlined"
+                        color="primary"
+                    >
+                        Close
+                    </Button>
+                </Box>
+            );
+        } else {
+            setSaveIssueError(
+                <Box width="420px">
+                    <Box mb={2}>
+                        <Box mb={1}>An error occurred when attempting to create the Issue.</Box>
+                        {typeof response.data === 'string' ? response.data : ''}
+                    </Box>
+                    <Button
+                        className={createIssueClasses.cancelIssueButton}
+                        onClick={handleCloseFailureMessage}
+                        variant="outlined"
+                        color="primary"
+                    >
+                        Close
+                    </Button>
+                </Box>
+            );
+        }
+    };
+
+    const handlePIICheckChange = e => {
+        setCheckPIIAccept(e.target.checked);
+    };
+
+    const handleSaveIssue = () => {
+        if (pIIErrorStatus) {
+            setSavingIssueModalIsOpen(true);
+        } else {
+            logUsaaPageView(SC.CREATE_ISSUE_SAVE);
+            let requestBody = buildSaveRequestBody(formData);
+            setSavingIssueModalIsOpen(true);
+            dispatch(saveAndContinueIssue(requestBody, handleSaveSuccess, handleSaveFailure));
+        }
+    };
+
+    const handleSaveIssueWithPIIError = () => {
+        setShowLoaderWithPIIError(true);
+        logUsaaPageView(SC.CREATE_ISSUE_SAVE_WITH_PII_ERROR);
+        let requestBody = buildSaveRequestBody(formData);
+        dispatch(saveAndContinueIssue(requestBody, handleSaveSuccess, handleSaveFailure));
+    };
+
+    const handleCloseModal = () => {
+        setSavingIssueModalIsOpen(false);
+    };
+
+    let savingIssueModalContent = <div>something</div>;
+
+    if (saveIssueError) {
+        savingIssueModalContent = saveIssueError;
+    } else {
+        savingIssueModalContent = (
+            <Box display="flex" justifyContent="center">
+                {pIIErrorStatus ? (
+                    <Box>
+                        {!showLoaderWithPIIError && (
+                            <Box>
+                                <FormGroup>
+                                    <FormControlLabel
+                                        control={
+                                            <StyledCheckbox
+                                                onChange={e => handlePIICheckChange(e)}
+                                                name={'pIIAcceptanceCheck'}
+                                                color="default"
+                                            />
+                                        }
+                                        label={pIIErrorText.checkboxText}
+                                    />
+                                </FormGroup>
+                                <Box mt={6} display="flex" justifyContent="flex-end" alignItems="center">
+                                    <Button
+                                        className={createIssueClasses.cancelIssueButton}
+                                        onClick={handleCloseFailureMessage}
+                                        variant="outlined"
+                                        color="primary"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Box ml={4}>
+                                        <StyledFormControlButton
+                                            disabled={!checkPIIAccept}
+                                            onClick={handleSaveIssueWithPIIError}
+                                            variant="contained"
+                                            color="primary"
+                                        >
+                                            Proceed
+                                        </StyledFormControlButton>
+                                    </Box>
+                                </Box>
+                            </Box>
+                        )}
+
+                        {showLoaderWithPIIError && (
+                            <Box>
+                                <Box display="flex" justifyContent="center">
+                                    <CircularProgress
+                                        classes={{root: basePageClasses.halfOpaque}}
+                                        color="secondary"
+                                        size={48}
+                                    />
+                                </Box>
+                                <Box fontSize={18} mt={2} color="#949494" textAlign="center">
+                                    Saving Issue ...
+                                </Box>
+                            </Box>
+                        )}
+                    </Box>
+                ) : (
+                    <Box>
+                        <Box display="flex" justifyContent="center">
+                            <CircularProgress
+                                classes={{root: basePageClasses.halfOpaque}}
+                                color="secondary"
+                                size={48}
+                            />
+                        </Box>
+                        <Box fontSize={18} mt={2} color="#949494" textAlign="center">
+                            Saving Issue ...
+                        </Box>
+                    </Box>
+                )}
+            </Box>
+        );
+    }
+
+    if (errorCount > 0) {
+        buttonContent = (
+            <HtmlTooltip
+                arrow
+                title={
+                    <React.Fragment>
+                        <h3>These fields need attention:</h3>
+                        <ul>
+                            {Object.keys(formErrors).map((invalidFormName, formIndex) => {
+                                return (
+                                    <li key={formIndex}>
+                                        <strong>{userFriendlyFormName(invalidFormName)}</strong>
+                                        <ul>
+                                            {Object.keys(formErrors[invalidFormName]).map(
+                                                (invalidFieldName, fieldIndex) => (
+                                                    <li key={fieldIndex}>
+                                                        {formErrors[invalidFormName][invalidFieldName].fieldLabel}
+                                                    </li>
+                                                )
+                                            )}
+                                        </ul>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </React.Fragment>
+                }
+            >
+                <span tabIndex="0" style={{marginLeft: 16}}>
+                    <StyledFormControlButton
+                        disabled={true}
+                        variant="contained"
+                        color="primary"
+                        onClick={handleSaveIssue}
+                    >
+                        SAVE ISSUE
+                    </StyledFormControlButton>
+                </span>
+            </HtmlTooltip>
+        );
+    } else {
+        buttonContent = (
+            <>
+                <StyledFormControlButton
+                    disabled={false}
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSaveIssue}
+                    style={{marginLeft: 16}}
+                >
+                    SAVE ISSUE
+                </StyledFormControlButton>
+
+                <Modal open={savingIssueModalIsOpen} onClose={handleCloseModal} disableBackdropClick>
+                    <main>
+                        <div
+                            className={
+                                saveIssueError
+                                    ? createIssueClasses.issueSavingErroredModal
+                                    : createIssueClasses.issueSavingModal
+                            }
+                            style={{
+                                top: `50%`,
+                                left: `50%`,
+                                transform: `translate(-50%, -50%)`
+                            }}
+                        >
+                            <Box px={5} py={6} justifyContent="center">
+                                <Box fontSize={16} m={2} ml={4} style={{width: '100%', margin: '0px'}}>
+                                    {savingIssueModalContent}
+                                </Box>
+                            </Box>
+                        </div>
+                    </main>
+                </Modal>
+            </>
+        );
+    }
+
+    return buttonContent;
+};
+
+export default SaveIssueButton;
+
+
+
+
+
+
+
+
+
+
+
