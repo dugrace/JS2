@@ -215,3 +215,199 @@ class Container extends React.Component {
 }
 
 ReactDOM.render(<Container />, app);
+===========
+===AddAttachmentDrawer
+import React, {useState} from 'react';
+import PropTypes from 'prop-types';
+import Drawer from '@material-ui/core/Drawer';
+import dashboardStyles, {drawerWidth} from '../../assets/jss/base-page-styles';
+import IconButton from '@material-ui/core/IconButton';
+import {withStyles} from '@material-ui/core/styles';
+import Box from '@material-ui/core/Box';
+import makeIssueDetailStyles from '../../assets/jss/issue-detail-styles';
+import Typography from '@material-ui/core/Typography';
+import {addAttachmentFilter} from '../../util/formUtils/formFunctions';
+import {reduxForm} from 'redux-form';
+import {Button} from '@material-ui/core';
+import ClearIcon from '@material-ui/icons/Clear';
+import ChevronLeft from '@material-ui/icons/ChevronLeft';
+import Publish from '@material-ui/icons/Publish';
+import DragAndDropFile from '../generic/DragAndDropFile';
+import AttachmentCard from './AttachmentCard';
+import {useSelector} from 'react-redux';
+import _ from 'lodash';
+
+const StyledChevronLeft = withStyles({
+    root: {
+        width: 36,
+        height: 36,
+        color: '#007FAC'
+    }
+})(ChevronLeft);
+
+const StyledPublish = withStyles({
+    root: {
+        width: 36,
+        height: 36,
+        paddingRight: '8px'
+    }
+})(Publish);
+
+const StyledFormControlButton = withStyles({
+    root: {
+        background: '#007FAC',
+        width: '268px',
+        height: '48px',
+        fontWeight: 700,
+        fontSize: '18px',
+        marginLeft: 'calc(100% - 42px)',
+        marginBottom: '16px'
+    },
+    disabled: {} // MUI official way to override 'disabled' styles ^^^
+})(Button);
+
+const CustomAttachmentDrawer = withStyles({
+    paper: {
+        height: 'calc(100% - 64px)',
+        width: 476,
+        flexShrink: 0,
+        marginTop: 64,
+        marginRight: drawerWidth,
+        boxShadow: '0 2px 4px -1px rgba(0,0,0,0.2), 0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12)',
+        background: '#FFFFFF'
+    }
+})(Drawer);
+
+const AddAttachmentDrawer = props => {
+    const {issueDetailData, handleAddAttachmentDrawerClose, addAttachmentDrawerOpen, handleAddAttachmentBack} = props;
+    const dashClasses = dashboardStyles();
+    const issueDetailStyles = makeIssueDetailStyles();
+    const [files, setFiles] = useState([]);
+    const userInfo = useSelector(state => state?.userProfileReducer?.user?.profile);
+    const handleDrop = tempFiles => {
+        const newFiles = [...tempFiles].filter(addAttachmentFilter).map(k => {
+            return {
+                attachment: k.name,
+                userName: userInfo.name,
+                userNameId: userInfo.sub,
+                attachmentDate: new Date(),
+                objectId: issueDetailData.issueId,
+                userCosa: 'Bank',
+                file: k
+            };
+        });
+        setFiles([...files, ...newFiles]);
+    };
+
+    const handleRemoveFile = fileToRemove => {
+        const newFiles = files.filter(i => !_.isEqual(i, fileToRemove));
+        setFiles(newFiles);
+    };
+
+    return (
+        <>
+            <CustomAttachmentDrawer
+                className={`${dashClasses.preIssueDrawer} imp-menu`}
+                variant="persistent"
+                anchor="right"
+                open={addAttachmentDrawerOpen}
+            >
+                <div>
+                    <Typography component="h1" variant="h1">
+                        <Box display="flex" justifyContent="space-between" p={3}>
+                            <Button
+                                style={{color: '#007FAC', fontSize: '18px', padding: '0'}}
+                                onClick={() => {
+                                    setFiles([]);
+                                    handleAddAttachmentBack();
+                                }}
+                            >
+                                <StyledChevronLeft /> BACK TO ATTACHMENTS
+                            </Button>
+                            <IconButton
+                                aria-label="Close Sidebar Button"
+                                onClick={() => {
+                                    setFiles([]);
+                                    handleAddAttachmentDrawerClose();
+                                }}
+                            >
+                                <ClearIcon />
+                            </IconButton>
+                        </Box>
+                        <Box px={3} pb={3}>
+                            <Box className={issueDetailStyles.attachmentSectionTitle} fontWeight={150}>
+                                Add Attachments
+                            </Box>
+                            <Box className={issueDetailStyles.attachmentSectionText}>
+                                Drag and drop files from your computer. Or click on the icon to browse files.
+                            </Box>
+                        </Box>
+                    </Typography>
+
+                    <Box
+                        display="flex"
+                        flexDirection="column"
+                        justifyContent="space-between"
+                        className={issueDetailStyles.addedAttachmentSectionBox}
+                        data-testid="Added-Attachments"
+                    >
+                        <Box pb={3} className={issueDetailStyles.addedAttachmentsText}>
+                            File types accepted are PDF, Word, Excel - limit 50 MB size.
+                        </Box>
+                        <DragAndDropFile handleDrop={handleDrop} files={files} />
+                        <Box pt={5}>Added Attachments ({files?.length})</Box>
+                    </Box>
+                    <div>
+                        {files?.length > 0 ? (
+                            files.map((attachment, index) => {
+                                return (
+                                    <AttachmentCard
+                                        key={index}
+                                        attachment={attachment}
+                                        isAdding={true}
+                                        handleRemoveFile={handleRemoveFile}
+                                    />
+                                );
+                            })
+                        ) : (
+                            <div className={issueDetailStyles.noCommentSectionBox} data-testid="no-attachments-message">
+                                There are no Attachments to display
+                            </div>
+                        )}
+                    </div>
+                    <div className={issueDetailStyles.addAttachmentSectionBox}>
+                        <div>
+                            <StyledFormControlButton
+                                disabled={false}
+                                variant="contained"
+                                color="primary"
+                                // onClick={handleSaveIssue}
+                                data-testid="Add-Attachments"
+                            >
+                                <StyledPublish />
+                                ADD ATTACHMENT(S)
+                            </StyledFormControlButton>
+                        </div>
+                    </div>
+                </div>
+            </CustomAttachmentDrawer>
+        </>
+    );
+};
+AddAttachmentDrawer.propTypes = {
+    addAttachmentDrawerOpen: PropTypes.bool,
+    issueDetailData: PropTypes.object,
+    handleAddAttachmentDrawerClose: PropTypes.func,
+    handleAddAttachmentBack: PropTypes.func
+};
+
+export default reduxForm({
+    form: 'issueAttachmentForm',
+    destroyOnUnmount: false,
+    enableReinitialize: true
+})(AddAttachmentDrawer);
+===addAttachmentFilter
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+var allowedExtensions = /(\.doc|\.xls|\.csv|\.mht|\.dot|\.xlt|\.slk|\.mhtml|\.html|\.pdf|\.txt|\.bmp|\.png|\.rtf|\.ppt|\.pot|\.vsd|\.jpeg|\.jpg|\.gif|\.docx|\.xlsx|\.pptx|\.xlsm|\.pptm|\.potx|\.potm|\.dotx|\.dotm|\.docm|\.xlsb|\.pub|\.xml|\.mdb|\.zip|\.tif|\.msg|\.mpeg|\.wav|\.igx|\.vsd|\.vss|\.vst|\.vdx|\.vsx|\.vtx|\.fil|\.mov)$/i;
+export const addAttachmentFilter = i => i?.size <= MAX_FILE_SIZE && allowedExtensions.test(i?.name);
+  
